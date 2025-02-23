@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,11 +33,16 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final String _collectionName = 'counters';
+  final String _documentId = 'my_counter_id';
 
   void _incrementCounter() {
-    setState(() {
-      _counter++;
+    _firestore.runTransaction((transaction) async {
+      transaction.update(
+        _firestore.collection(_collectionName).doc(_documentId),
+        <String, dynamic>{'counter': FieldValue.increment(1)},
+      );
     });
   }
 
@@ -53,9 +59,33 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            StreamBuilder<DocumentSnapshot>(
+              stream:
+                  _firestore
+                      .collection(_collectionName)
+                      .doc(_documentId)
+                      .snapshots(),
+              builder: (
+                BuildContext context,
+                AsyncSnapshot<DocumentSnapshot> snapshot,
+              ) {
+                if (snapshot.hasError) {
+                  return Text('Something went wrong');
+                }
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return CircularProgressIndicator();
+                }
+                if (!snapshot.hasData) {
+                  return Text('Document does not exist');
+                }
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                final counter = data['counter'] as int;
+
+                return Text(
+                  '$counter',
+                  style: Theme.of(context).textTheme.headlineLarge,
+                );
+              },
             ),
           ],
         ),
